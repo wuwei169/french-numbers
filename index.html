@@ -129,6 +129,43 @@
             margin-bottom: 20px;
         }
 
+        /* sentence reveal */
+        .sentence-display {
+            font-size: 1rem;
+            color: #444;
+            background: #f5f7ff;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .sentence-display.visible { display: block; }
+
+        /* sentence-mode helper buttons */
+        .sentence-actions {
+            display: none;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .sentence-actions.visible { display: flex; }
+
+        .btn-ghost {
+            padding: 7px 16px;
+            border: 2px solid #c0c4cc;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .btn-ghost:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
         .input-row {
             display: flex;
             gap: 10px;
@@ -136,6 +173,9 @@
             justify-content: center;
             margin-bottom: 16px;
         }
+
+        /* input hidden until first question */
+        .input-row.hidden { visibility: hidden; }
 
         #answer-input {
             font-size: 1.5rem;
@@ -200,12 +240,19 @@
             <span id="pct"></span>
         </div>
 
-        <button class="speak-btn" id="speak-btn" title="Click to hear again">🔊</button>
+        <button class="speak-btn" id="speak-btn" title="Click to hear">🔊</button>
 
-        <p class="hint">Type the number you hear, then press Enter or click Check</p>
+        <p class="hint" id="hint">Press 🔊 to start</p>
 
-        <div class="input-row">
-            <input type="text" inputmode="numeric" id="answer-input" autocomplete="off" autofocus>
+        <!-- sentence mode extras -->
+        <div class="sentence-display" id="sentence-display"></div>
+        <div class="sentence-actions" id="sentence-actions">
+            <button class="btn-ghost" id="show-sentence-btn">Show Sentence</button>
+            <button class="btn-ghost" id="skip-btn">Skip</button>
+        </div>
+
+        <div class="input-row hidden" id="input-row">
+            <input type="text" inputmode="numeric" id="answer-input" autocomplete="off">
             <button id="submit-btn">Check</button>
         </div>
 
@@ -222,15 +269,23 @@
         const correctEl = document.getElementById('correct');
         const totalEl = document.getElementById('total');
         const pctEl = document.getElementById('pct');
+        const hintEl = document.getElementById('hint');
+        const inputRow = document.getElementById('input-row');
+        const sentenceDisplay = document.getElementById('sentence-display');
+        const sentenceActions = document.getElementById('sentence-actions');
+        const showSentenceBtn = document.getElementById('show-sentence-btn');
+        const skipBtn = document.getElementById('skip-btn');
 
         let currentNumber = null;
-        let currentText = '';   // what gets spoken (number or full sentence)
+        let currentText = null;   // what gets spoken
+        let currentSentence = ''; // full sentence text (sentence mode only)
         let currentMin = 0;
         let currentMax = 10;
         let currentMode = 'number';
         let correctCount = 0;
         let totalCount = 0;
         let frVoice = null;
+        let started = false;
 
         // ── Sentence building blocks ──────────────────────────────────────────
 
@@ -243,7 +298,7 @@
 
         const places = [
             'dans la rue', 'dans le parc', 'dans la salle', 'dans le jardin',
-            'dans le bus', 'sur le parking', 'dans l\'école', 'dans le train',
+            'dans le bus', 'sur le parking', "dans l'école", 'dans le train',
             'sur la plage', 'dans le café', 'dans le magasin', 'dans la maison'
         ];
 
@@ -256,9 +311,7 @@
         const subjects = ['Je', 'Il', 'Elle', 'Nous', 'Mon ami', 'Ma sœur', 'Mon frère'];
         const haveVerbs = { 'Je': 'ai', 'Il': 'a', 'Elle': 'a', 'Nous': 'avons', 'Mon ami': 'a', 'Ma sœur': 'a', 'Mon frère': 'a' };
 
-        function pick(arr) {
-            return arr[Math.floor(Math.random() * arr.length)];
-        }
+        function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
         const templates = [
             n => `Il y a ${n} ${pick(nouns)} ${pick(places)}.`,
@@ -299,25 +352,56 @@
             window.speechSynthesis.speak(utter);
         }
 
+        // ── UI helpers ────────────────────────────────────────────────────────
+
+        function showInputUI() {
+            inputRow.classList.remove('hidden');
+            hintEl.textContent = 'Type the number you hear, then press Enter or click Check';
+            answerInput.focus();
+        }
+
+        function updateSentenceModeUI() {
+            if (currentMode === 'sentence') {
+                sentenceActions.classList.add('visible');
+            } else {
+                sentenceActions.classList.remove('visible');
+                sentenceDisplay.classList.remove('visible');
+                sentenceDisplay.textContent = '';
+                showSentenceBtn.textContent = 'Show Sentence';
+            }
+        }
+
         // ── Game logic ────────────────────────────────────────────────────────
 
         function randomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        function nextQuestion() {
+        function prepareQuestion() {
             currentNumber = randomInt(currentMin, currentMax);
             if (currentMode === 'sentence') {
-                currentText = pick(templates)(currentNumber);
+                currentSentence = pick(templates)(currentNumber);
+                currentText = currentSentence;
             } else {
+                currentSentence = '';
                 currentText = String(currentNumber);
             }
+            // Reset sentence reveal
+            sentenceDisplay.classList.remove('visible');
+            sentenceDisplay.textContent = '';
+            showSentenceBtn.textContent = 'Show Sentence';
+        }
+
+        function nextQuestion(autoSpeak = true) {
+            prepareQuestion();
             answerInput.value = '';
             answerInput.disabled = false;
             feedback.textContent = '';
             feedback.className = 'feedback';
-            answerInput.focus();
-            speak(currentText);
+            if (autoSpeak) {
+                showInputUI();
+                speak(currentText);
+            }
         }
 
         function checkAnswer() {
@@ -330,7 +414,7 @@
             if (answer === currentNumber) {
                 correctCount++;
                 updateScore();
-                nextQuestion();
+                nextQuestion(true);
             } else {
                 feedback.textContent = 'Listen Again';
                 feedback.className = 'feedback wrong';
@@ -356,7 +440,15 @@
                 modeBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentMode = btn.dataset.mode;
-                nextQuestion();
+                updateSentenceModeUI();
+                // Prepare a new question but don't auto-speak
+                if (started) {
+                    nextQuestion(false);
+                    hintEl.textContent = 'Press 🔊 to hear the next question';
+                    inputRow.classList.add('hidden');
+                    feedback.textContent = '';
+                    feedback.className = 'feedback';
+                }
             });
         });
 
@@ -366,12 +458,41 @@
                 btn.classList.add('active');
                 currentMin = parseInt(btn.dataset.min);
                 currentMax = parseInt(btn.dataset.max);
-                nextQuestion();
+                // Prepare a new question but don't auto-speak
+                if (started) {
+                    nextQuestion(false);
+                    hintEl.textContent = 'Press 🔊 to hear the next question';
+                    inputRow.classList.add('hidden');
+                    feedback.textContent = '';
+                    feedback.className = 'feedback';
+                }
             });
         });
 
         speakBtn.addEventListener('click', () => {
-            if (currentText) speak(currentText);
+            if (!started) {
+                started = true;
+                prepareQuestion();
+                updateSentenceModeUI();
+            }
+            showInputUI();
+            speak(currentText);
+        });
+
+        showSentenceBtn.addEventListener('click', () => {
+            if (sentenceDisplay.classList.contains('visible')) {
+                sentenceDisplay.classList.remove('visible');
+                sentenceDisplay.textContent = '';
+                showSentenceBtn.textContent = 'Show Sentence';
+            } else {
+                sentenceDisplay.textContent = currentSentence;
+                sentenceDisplay.classList.add('visible');
+                showSentenceBtn.textContent = 'Hide Sentence';
+            }
+        });
+
+        skipBtn.addEventListener('click', () => {
+            nextQuestion(true);
         });
 
         submitBtn.addEventListener('click', checkAnswer);
@@ -379,9 +500,6 @@
         answerInput.addEventListener('keydown', e => {
             if (e.key === 'Enter') checkAnswer();
         });
-
-        // Start
-        nextQuestion();
     </script>
 </body>
 </html>
