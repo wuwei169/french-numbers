@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>French Numbers Practice</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px;
+            color: #222;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+
+        .range-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .range-btn {
+            padding: 8px 18px;
+            border: 2px solid #c0c4cc;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .range-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+        .range-btn.active {
+            background: #4f6ef7;
+            border-color: #4f6ef7;
+            color: white;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 36px 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 460px;
+            text-align: center;
+        }
+
+        .score {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 28px;
+        }
+
+        .score strong { color: #333; }
+
+        .speak-btn {
+            background: #4f6ef7;
+            border: none;
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            font-size: 2rem;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px;
+            transition: background 0.15s, transform 0.1s;
+            box-shadow: 0 4px 12px rgba(79, 110, 247, 0.35);
+        }
+
+        .speak-btn:hover { background: #3a57e8; transform: scale(1.05); }
+        .speak-btn:active { transform: scale(0.96); }
+        .speak-btn.speaking { background: #6c47ff; animation: pulse 0.8s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 12px rgba(108, 71, 255, 0.4); }
+            50% { box-shadow: 0 4px 24px rgba(108, 71, 255, 0.7); }
+        }
+
+        .hint {
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        #answer-input {
+            font-size: 1.5rem;
+            text-align: center;
+            width: 180px;
+            padding: 10px 16px;
+            border: 2px solid #dde2f0;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        #answer-input:focus { border-color: #4f6ef7; }
+
+        #submit-btn {
+            padding: 10px 22px;
+            background: #4f6ef7;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        #submit-btn:hover { background: #3a57e8; }
+
+        .feedback {
+            min-height: 28px;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 6px 12px;
+            display: inline-block;
+        }
+
+        .feedback.wrong {
+            color: #c0392b;
+            background: #fdecea;
+        }
+
+        .feedback.correct {
+            color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <h1>French Numbers Practice</h1>
+
+    <div class="range-selector">
+        <button class="range-btn active" data-min="0" data-max="10">0 – 10</button>
+        <button class="range-btn" data-min="0" data-max="100">0 – 100</button>
+        <button class="range-btn" data-min="0" data-max="1000">0 – 1 000</button>
+        <button class="range-btn" data-min="0" data-max="1000000">All</button>
+    </div>
+
+    <div class="card">
+        <div class="score">
+            Correct: <strong id="correct">0</strong> / <strong id="total">0</strong>
+            <span id="pct"></span>
+        </div>
+
+        <button class="speak-btn" id="speak-btn" title="Click to hear the number again">🔊</button>
+
+        <p class="hint">Type the number you hear, then press Enter or click Check</p>
+
+        <div class="input-row">
+            <input type="text" inputmode="numeric" id="answer-input" autocomplete="off" autofocus>
+            <button id="submit-btn">Check</button>
+        </div>
+
+        <div class="feedback" id="feedback"></div>
+    </div>
+
+    <script>
+        const ranges = document.querySelectorAll('.range-btn');
+        const speakBtn = document.getElementById('speak-btn');
+        const answerInput = document.getElementById('answer-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const feedback = document.getElementById('feedback');
+        const correctEl = document.getElementById('correct');
+        const totalEl = document.getElementById('total');
+        const pctEl = document.getElementById('pct');
+
+        let currentNumber = null;
+        let currentMin = 0;
+        let currentMax = 10;
+        let correctCount = 0;
+        let totalCount = 0;
+        let frVoice = null;
+
+        // Find French voice
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            frVoice = voices.find(v => v.lang.startsWith('fr')) || null;
+        }
+        loadVoices();
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+
+        function speak(number) {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(String(number));
+            utter.lang = 'fr-FR';
+            utter.rate = 0.85;
+            if (frVoice) utter.voice = frVoice;
+            speakBtn.classList.add('speaking');
+            utter.onend = () => speakBtn.classList.remove('speaking');
+            utter.onerror = () => speakBtn.classList.remove('speaking');
+            window.speechSynthesis.speak(utter);
+        }
+
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function nextQuestion() {
+            currentNumber = randomInt(currentMin, currentMax);
+            answerInput.value = '';
+            answerInput.disabled = false;
+            feedback.textContent = '';
+            feedback.className = 'feedback';
+            answerInput.focus();
+            speak(currentNumber);
+        }
+
+        function checkAnswer() {
+            const raw = answerInput.value.trim();
+            if (raw === '') return;
+
+            const answer = parseInt(raw, 10);
+            totalCount++;
+
+            if (answer === currentNumber) {
+                correctCount++;
+                updateScore();
+                nextQuestion();
+            } else {
+                feedback.textContent = 'Listen Again';
+                feedback.className = 'feedback wrong';
+                updateScore();
+                speak(currentNumber);
+                answerInput.value = '';
+                answerInput.focus();
+            }
+        }
+
+        function updateScore() {
+            correctEl.textContent = correctCount;
+            totalEl.textContent = totalCount;
+            if (totalCount > 0) {
+                pctEl.textContent = `(${Math.round(correctCount / totalCount * 100)}%)`;
+            }
+        }
+
+        // Range buttons
+        ranges.forEach(btn => {
+            btn.addEventListener('click', () => {
+                ranges.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMin = parseInt(btn.dataset.min);
+                currentMax = parseInt(btn.dataset.max);
+                nextQuestion();
+            });
+        });
+
+        speakBtn.addEventListener('click', () => {
+            if (currentNumber !== null) speak(currentNumber);
+        });
+
+        submitBtn.addEventListener('click', checkAnswer);
+
+        answerInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') checkAnswer();
+        });
+
+        // Start
+        nextQuestion();
+    </script>
+</body>
+</html>
