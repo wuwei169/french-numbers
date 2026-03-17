@@ -29,6 +29,8 @@
             display: flex;
             gap: 8px;
             margin-bottom: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         .mode-btn {
@@ -44,17 +46,12 @@
         }
 
         .mode-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
-
-        .mode-btn.active {
-            background: #4f6ef7;
-            border-color: #4f6ef7;
-            color: white;
-        }
+        .mode-btn.active { background: #4f6ef7; border-color: #4f6ef7; color: white; }
 
         .range-selector {
             display: flex;
             gap: 8px;
-            margin-bottom: 24px;
+            margin-bottom: 14px;
             flex-wrap: wrap;
             justify-content: center;
         }
@@ -72,12 +69,29 @@
         }
 
         .range-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+        .range-btn.active { background: #4f6ef7; border-color: #4f6ef7; color: white; }
 
-        .range-btn.active {
-            background: #4f6ef7;
-            border-color: #4f6ef7;
-            color: white;
+        .answer-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            justify-content: center;
         }
+
+        .answer-btn {
+            padding: 7px 18px;
+            border: 2px solid #c0c4cc;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .answer-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+        .answer-btn.active { background: #4f6ef7; border-color: #4f6ef7; color: white; }
 
         .card {
             background: white;
@@ -129,7 +143,6 @@
             margin-bottom: 20px;
         }
 
-        /* sentence reveal */
         .sentence-display {
             font-size: 1rem;
             color: #444;
@@ -142,7 +155,6 @@
 
         .sentence-display.visible { display: block; }
 
-        /* sentence-mode helper buttons */
         .sentence-actions {
             display: none;
             gap: 8px;
@@ -174,19 +186,20 @@
             margin-bottom: 16px;
         }
 
-        /* input hidden until first question */
         .input-row.hidden { visibility: hidden; }
 
         #answer-input {
             font-size: 1.5rem;
             text-align: center;
-            width: 180px;
+            width: 220px;
             padding: 10px 16px;
             border: 2px solid #dde2f0;
             border-radius: 10px;
             outline: none;
             transition: border-color 0.15s;
         }
+
+        #answer-input.french-mode { font-size: 1.1rem; width: 280px; }
 
         #answer-input:focus { border-color: #4f6ef7; }
 
@@ -213,10 +226,7 @@
             display: inline-block;
         }
 
-        .feedback.wrong {
-            color: #c0392b;
-            background: #fdecea;
-        }
+        .feedback.wrong { color: #c0392b; background: #fdecea; }
     </style>
 </head>
 <body>
@@ -234,6 +244,12 @@
         <button class="range-btn" data-min="0" data-max="1000000">All</button>
     </div>
 
+    <div class="answer-selector">
+        <span style="font-size:0.9rem;color:#888;align-self:center;">Answer in:</span>
+        <button class="answer-btn active" data-answer="digits">🔢 Digits</button>
+        <button class="answer-btn" data-answer="french">🔤 French Words</button>
+    </div>
+
     <div class="card">
         <div class="score">
             Correct: <strong id="correct">0</strong> / <strong id="total">0</strong>
@@ -244,7 +260,6 @@
 
         <p class="hint" id="hint">Press 🔊 to start</p>
 
-        <!-- sentence mode extras -->
         <div class="sentence-display" id="sentence-display"></div>
         <div class="sentence-actions" id="sentence-actions">
             <button class="btn-ghost" id="show-sentence-btn">Show Sentence</button>
@@ -252,7 +267,7 @@
         </div>
 
         <div class="input-row hidden" id="input-row">
-            <input type="text" inputmode="numeric" id="answer-input" autocomplete="off">
+            <input type="text" inputmode="numeric" id="answer-input" autocomplete="off" autocapitalize="none">
             <button id="submit-btn">Check</button>
         </div>
 
@@ -260,57 +275,114 @@
     </div>
 
     <script>
-        const ranges = document.querySelectorAll('.range-btn');
-        const modeBtns = document.querySelectorAll('.mode-btn');
-        const speakBtn = document.getElementById('speak-btn');
-        const answerInput = document.getElementById('answer-input');
-        const submitBtn = document.getElementById('submit-btn');
-        const feedback = document.getElementById('feedback');
-        const correctEl = document.getElementById('correct');
-        const totalEl = document.getElementById('total');
-        const pctEl = document.getElementById('pct');
-        const hintEl = document.getElementById('hint');
-        const inputRow = document.getElementById('input-row');
-        const sentenceDisplay = document.getElementById('sentence-display');
-        const sentenceActions = document.getElementById('sentence-actions');
-        const showSentenceBtn = document.getElementById('show-sentence-btn');
-        const skipBtn = document.getElementById('skip-btn');
+        const ranges       = document.querySelectorAll('.range-btn');
+        const modeBtns     = document.querySelectorAll('.mode-btn');
+        const answerBtns   = document.querySelectorAll('.answer-btn');
+        const speakBtn     = document.getElementById('speak-btn');
+        const answerInput  = document.getElementById('answer-input');
+        const submitBtn    = document.getElementById('submit-btn');
+        const feedback     = document.getElementById('feedback');
+        const correctEl    = document.getElementById('correct');
+        const totalEl      = document.getElementById('total');
+        const pctEl        = document.getElementById('pct');
+        const hintEl       = document.getElementById('hint');
+        const inputRow     = document.getElementById('input-row');
+        const sentenceDisplay  = document.getElementById('sentence-display');
+        const sentenceActions  = document.getElementById('sentence-actions');
+        const showSentenceBtn  = document.getElementById('show-sentence-btn');
+        const skipBtn          = document.getElementById('skip-btn');
 
         const TTS_URL = 'https://conjugaison-bud0.onrender.com/api/tts';
 
-        let currentNumber = null;
-        let currentText = null;   // what gets spoken
-        let currentSentence = ''; // full sentence text (sentence mode only)
-        let currentMin = 0;
-        let currentMax = 10;
-        let currentMode = 'number';
-        let correctCount = 0;
-        let totalCount = 0;
-        let started = false;
+        let currentNumber   = null;
+        let currentText     = null;
+        let currentSentence = '';
+        let currentMin      = 0;
+        let currentMax      = 10;
+        let currentMode     = 'number';   // 'number' | 'sentence'
+        let answerMode      = 'digits';   // 'digits' | 'french'
+        let correctCount    = 0;
+        let totalCount      = 0;
+        let started         = false;
+
+        // ── French number → words ─────────────────────────────────────────────
+
+        const UNITS = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+                       'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize',
+                       'dix-sept', 'dix-huit', 'dix-neuf'];
+        const TENS  = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante'];
+
+        function numberToFrench(n) {
+            if (n === 0) return 'zéro';
+
+            function cvt(n, terminal) {
+                if (n === 0) return '';
+                if (n < 20)  return UNITS[n];
+
+                if (n < 70) {
+                    const t = Math.floor(n / 10), u = n % 10;
+                    if (u === 0) return TENS[t];
+                    return TENS[t] + (u === 1 ? ' et un' : '-' + UNITS[u]);
+                }
+
+                if (n < 80) {
+                    const r = n - 60;
+                    return r === 11 ? 'soixante et onze' : 'soixante-' + UNITS[r];
+                }
+
+                if (n < 100) {
+                    const r = n - 80;
+                    if (r === 0) return terminal ? 'quatre-vingts' : 'quatre-vingt';
+                    return 'quatre-vingt-' + cvt(r, terminal);
+                }
+
+                if (n < 1000) {
+                    const h = Math.floor(n / 100), r = n % 100;
+                    const base = (h === 1 ? 'cent' : UNITS[h] + ' cent') +
+                                 (r === 0 && terminal ? 's' : '');
+                    return r === 0 ? base : base + ' ' + cvt(r, terminal);
+                }
+
+                if (n < 1000000) {
+                    const t = Math.floor(n / 1000), r = n % 1000;
+                    const base = (t === 1 ? 'mille' : cvt(t, false) + ' mille');
+                    return r === 0 ? base : base + ' ' + cvt(r, terminal);
+                }
+
+                const m = Math.floor(n / 1000000), r = n % 1000000;
+                const base = (m === 1 ? 'un' : cvt(m, false)) + (m > 1 ? ' millions' : ' million');
+                return r === 0 ? base : base + ' ' + cvt(r, terminal);
+            }
+
+            return cvt(n, true);
+        }
+
+        // ── Answer normalisation ──────────────────────────────────────────────
+
+        function normalizeFrench(s) {
+            return s
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accents
+                .replace(/-/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/\bvingts\b/g, 'vingt')   // accept with/without plural s
+                .replace(/\bcents\b/g,  'cent')
+                .replace(/\bmillions\b/g, 'million');
+        }
 
         // ── Sentence building blocks ──────────────────────────────────────────
 
-        const nouns = [
-            'voitures', 'personnes', 'élèves', 'chats', 'livres',
-            'enfants', 'oiseaux', 'arbres', 'étudiants', 'vélos',
-            'fleurs', 'chiens', 'tables', 'touristes', 'voisins',
-            'bouteilles', 'sacs', 'chaises', 'fenêtres', 'photos'
-        ];
-
-        const places = [
-            'dans la rue', 'dans le parc', 'dans la salle', 'dans le jardin',
-            'dans le bus', 'sur le parking', "dans l'école", 'dans le train',
-            'sur la plage', 'dans le café', 'dans le magasin', 'dans la maison'
-        ];
-
-        const family = [
-            'Mon père', 'Ma mère', 'Mon frère', 'Ma sœur',
-            'Mon oncle', 'Ma tante', 'Mon cousin', 'Ma cousine',
-            'Mon ami', 'Mon voisin', 'Ma voisine', 'Mon professeur'
-        ];
-
-        const subjects = ['Je', 'Il', 'Elle', 'Nous', 'Mon ami', 'Ma sœur', 'Mon frère'];
-        const haveVerbs = { 'Je': 'ai', 'Il': 'a', 'Elle': 'a', 'Nous': 'avons', 'Mon ami': 'a', 'Ma sœur': 'a', 'Mon frère': 'a' };
+        const nouns    = ['voitures','personnes','élèves','chats','livres','enfants',
+                          'oiseaux','arbres','étudiants','vélos','fleurs','chiens',
+                          'tables','touristes','voisins','bouteilles','sacs','chaises'];
+        const places   = ['dans la rue','dans le parc','dans la salle','dans le jardin',
+                          'dans le bus','sur le parking',"dans l'école",'dans le train',
+                          'sur la plage','dans le café','dans le magasin','dans la maison'];
+        const family   = ['Mon père','Ma mère','Mon frère','Ma sœur','Mon oncle',
+                          'Ma tante','Mon cousin','Ma cousine','Mon ami','Mon voisin'];
+        const subjects  = ['Je','Il','Elle','Nous','Mon ami','Ma sœur','Mon frère'];
+        const haveVerbs = {Je:'ai',Il:'a',Elle:'a',Nous:'avons','Mon ami':'a','Ma sœur':'a','Mon frère':'a'};
 
         function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -346,7 +418,7 @@
                     body: JSON.stringify({ text })
                 });
                 const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
+                const url  = URL.createObjectURL(blob);
                 currentAudio = new Audio(url);
                 currentAudio.onended = () => speakBtn.classList.remove('speaking');
                 currentAudio.onerror = () => speakBtn.classList.remove('speaking');
@@ -358,9 +430,21 @@
 
         // ── UI helpers ────────────────────────────────────────────────────────
 
+        function updateInputMode() {
+            if (answerMode === 'french') {
+                answerInput.inputMode = 'text';
+                answerInput.classList.add('french-mode');
+            } else {
+                answerInput.inputMode = 'numeric';
+                answerInput.classList.remove('french-mode');
+            }
+        }
+
         function showInputUI() {
             inputRow.classList.remove('hidden');
-            hintEl.textContent = 'Type the number you hear, then press Enter or click Check';
+            hintEl.textContent = answerMode === 'french'
+                ? 'Type the number in French words, then press Enter or click Check'
+                : 'Type the number you hear, then press Enter or click Check';
             answerInput.focus();
         }
 
@@ -375,6 +459,13 @@
             }
         }
 
+        function resetUI() {
+            hintEl.textContent = 'Press 🔊 to hear the next question';
+            inputRow.classList.add('hidden');
+            feedback.textContent = '';
+            feedback.className = 'feedback';
+        }
+
         // ── Game logic ────────────────────────────────────────────────────────
 
         function randomInt(min, max) {
@@ -383,14 +474,8 @@
 
         function prepareQuestion() {
             currentNumber = randomInt(currentMin, currentMax);
-            if (currentMode === 'sentence') {
-                currentSentence = pick(templates)(currentNumber);
-                currentText = currentSentence;
-            } else {
-                currentSentence = '';
-                currentText = String(currentNumber);
-            }
-            // Reset sentence reveal
+            currentSentence = currentMode === 'sentence' ? pick(templates)(currentNumber) : '';
+            currentText = currentMode === 'sentence' ? currentSentence : String(currentNumber);
             sentenceDisplay.classList.remove('visible');
             sentenceDisplay.textContent = '';
             showSentenceBtn.textContent = 'Show Sentence';
@@ -402,20 +487,23 @@
             answerInput.disabled = false;
             feedback.textContent = '';
             feedback.className = 'feedback';
-            if (autoSpeak) {
-                showInputUI();
-                speak(currentText);
-            }
+            if (autoSpeak) { showInputUI(); speak(currentText); }
         }
 
         function checkAnswer() {
             const raw = answerInput.value.trim();
             if (raw === '') return;
 
-            const answer = parseInt(raw, 10);
+            let correct;
+            if (answerMode === 'digits') {
+                correct = parseInt(raw, 10) === currentNumber;
+            } else {
+                correct = normalizeFrench(raw) === normalizeFrench(numberToFrench(currentNumber));
+            }
+
             totalCount++;
 
-            if (answer === currentNumber) {
+            if (correct) {
                 correctCount++;
                 updateScore();
                 nextQuestion(true);
@@ -431,47 +519,36 @@
 
         function updateScore() {
             correctEl.textContent = correctCount;
-            totalEl.textContent = totalCount;
-            if (totalCount > 0) {
+            totalEl.textContent   = totalCount;
+            if (totalCount > 0)
                 pctEl.textContent = `(${Math.round(correctCount / totalCount * 100)}%)`;
-            }
         }
 
         // ── Event listeners ───────────────────────────────────────────────────
 
-        modeBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                modeBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentMode = btn.dataset.mode;
-                updateSentenceModeUI();
-                // Prepare a new question but don't auto-speak
-                if (started) {
-                    nextQuestion(false);
-                    hintEl.textContent = 'Press 🔊 to hear the next question';
-                    inputRow.classList.add('hidden');
-                    feedback.textContent = '';
-                    feedback.className = 'feedback';
-                }
-            });
-        });
+        modeBtns.forEach(btn => btn.addEventListener('click', () => {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentMode = btn.dataset.mode;
+            updateSentenceModeUI();
+            if (started) { nextQuestion(false); resetUI(); }
+        }));
 
-        ranges.forEach(btn => {
-            btn.addEventListener('click', () => {
-                ranges.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentMin = parseInt(btn.dataset.min);
-                currentMax = parseInt(btn.dataset.max);
-                // Prepare a new question but don't auto-speak
-                if (started) {
-                    nextQuestion(false);
-                    hintEl.textContent = 'Press 🔊 to hear the next question';
-                    inputRow.classList.add('hidden');
-                    feedback.textContent = '';
-                    feedback.className = 'feedback';
-                }
-            });
-        });
+        ranges.forEach(btn => btn.addEventListener('click', () => {
+            ranges.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentMin = parseInt(btn.dataset.min);
+            currentMax = parseInt(btn.dataset.max);
+            if (started) { nextQuestion(false); resetUI(); }
+        }));
+
+        answerBtns.forEach(btn => btn.addEventListener('click', () => {
+            answerBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            answerMode = btn.dataset.answer;
+            updateInputMode();
+            if (started) { nextQuestion(false); resetUI(); }
+        }));
 
         speakBtn.addEventListener('click', () => {
             if (!started) {
@@ -495,15 +572,9 @@
             }
         });
 
-        skipBtn.addEventListener('click', () => {
-            nextQuestion(true);
-        });
-
+        skipBtn.addEventListener('click', () => nextQuestion(true));
         submitBtn.addEventListener('click', checkAnswer);
-
-        answerInput.addEventListener('keydown', e => {
-            if (e.key === 'Enter') checkAnswer();
-        });
+        answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkAnswer(); });
     </script>
 </body>
 </html>
