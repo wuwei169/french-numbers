@@ -276,6 +276,8 @@
         const showSentenceBtn = document.getElementById('show-sentence-btn');
         const skipBtn = document.getElementById('skip-btn');
 
+        const TTS_URL = 'https://french-conjugation.onrender.com/api/tts';
+
         let currentNumber = null;
         let currentText = null;   // what gets spoken
         let currentSentence = ''; // full sentence text (sentence mode only)
@@ -284,7 +286,6 @@
         let currentMode = 'number';
         let correctCount = 0;
         let totalCount = 0;
-        let frVoice = null;
         let started = false;
 
         // ── Sentence building blocks ──────────────────────────────────────────
@@ -333,23 +334,26 @@
 
         // ── Speech ────────────────────────────────────────────────────────────
 
-        function loadVoices() {
-            const voices = window.speechSynthesis.getVoices();
-            frVoice = voices.find(v => v.lang.startsWith('fr')) || null;
-        }
-        loadVoices();
-        window.speechSynthesis.onvoiceschanged = loadVoices;
+        let currentAudio = null;
 
-        function speak(text) {
-            window.speechSynthesis.cancel();
-            const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = 'fr-FR';
-            utter.rate = 0.85;
-            if (frVoice) utter.voice = frVoice;
+        async function speak(text) {
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
             speakBtn.classList.add('speaking');
-            utter.onend = () => speakBtn.classList.remove('speaking');
-            utter.onerror = () => speakBtn.classList.remove('speaking');
-            window.speechSynthesis.speak(utter);
+            try {
+                const res = await fetch(TTS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+                currentAudio.onended = () => speakBtn.classList.remove('speaking');
+                currentAudio.onerror = () => speakBtn.classList.remove('speaking');
+                currentAudio.play();
+            } catch (e) {
+                speakBtn.classList.remove('speaking');
+            }
         }
 
         // ── UI helpers ────────────────────────────────────────────────────────
