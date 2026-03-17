@@ -25,6 +25,32 @@
             color: #1a1a2e;
         }
 
+        .toggle-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .mode-btn {
+            padding: 8px 20px;
+            border: 2px solid #c0c4cc;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .mode-btn:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+        .mode-btn.active {
+            background: #4f6ef7;
+            border-color: #4f6ef7;
+            color: white;
+        }
+
         .range-selector {
             display: flex;
             gap: 8px;
@@ -151,14 +177,15 @@
             color: #c0392b;
             background: #fdecea;
         }
-
-        .feedback.correct {
-            color: #27ae60;
-        }
     </style>
 </head>
 <body>
     <h1>French Numbers Practice</h1>
+
+    <div class="toggle-row">
+        <button class="mode-btn active" data-mode="number">Number Only</button>
+        <button class="mode-btn" data-mode="sentence">Number in a Sentence</button>
+    </div>
 
     <div class="range-selector">
         <button class="range-btn active" data-min="0" data-max="10">0 – 10</button>
@@ -173,7 +200,7 @@
             <span id="pct"></span>
         </div>
 
-        <button class="speak-btn" id="speak-btn" title="Click to hear the number again">🔊</button>
+        <button class="speak-btn" id="speak-btn" title="Click to hear again">🔊</button>
 
         <p class="hint">Type the number you hear, then press Enter or click Check</p>
 
@@ -187,6 +214,7 @@
 
     <script>
         const ranges = document.querySelectorAll('.range-btn');
+        const modeBtns = document.querySelectorAll('.mode-btn');
         const speakBtn = document.getElementById('speak-btn');
         const answerInput = document.getElementById('answer-input');
         const submitBtn = document.getElementById('submit-btn');
@@ -196,13 +224,62 @@
         const pctEl = document.getElementById('pct');
 
         let currentNumber = null;
+        let currentText = '';   // what gets spoken (number or full sentence)
         let currentMin = 0;
         let currentMax = 10;
+        let currentMode = 'number';
         let correctCount = 0;
         let totalCount = 0;
         let frVoice = null;
 
-        // Find French voice
+        // ── Sentence building blocks ──────────────────────────────────────────
+
+        const nouns = [
+            'voitures', 'personnes', 'élèves', 'chats', 'livres',
+            'enfants', 'oiseaux', 'arbres', 'étudiants', 'vélos',
+            'fleurs', 'chiens', 'tables', 'touristes', 'voisins',
+            'bouteilles', 'sacs', 'chaises', 'fenêtres', 'photos'
+        ];
+
+        const places = [
+            'dans la rue', 'dans le parc', 'dans la salle', 'dans le jardin',
+            'dans le bus', 'sur le parking', 'dans l\'école', 'dans le train',
+            'sur la plage', 'dans le café', 'dans le magasin', 'dans la maison'
+        ];
+
+        const family = [
+            'Mon père', 'Ma mère', 'Mon frère', 'Ma sœur',
+            'Mon oncle', 'Ma tante', 'Mon cousin', 'Ma cousine',
+            'Mon ami', 'Mon voisin', 'Ma voisine', 'Mon professeur'
+        ];
+
+        const subjects = ['Je', 'Il', 'Elle', 'Nous', 'Mon ami', 'Ma sœur', 'Mon frère'];
+        const haveVerbs = { 'Je': 'ai', 'Il': 'a', 'Elle': 'a', 'Nous': 'avons', 'Mon ami': 'a', 'Ma sœur': 'a', 'Mon frère': 'a' };
+
+        function pick(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        const templates = [
+            n => `Il y a ${n} ${pick(nouns)} ${pick(places)}.`,
+            n => { const s = pick(subjects); return `${s} ${haveVerbs[s]} ${n} ${pick(nouns)}.`; },
+            n => `${pick(family)} a ${n} ans.`,
+            n => `Ça coûte ${n} euros.`,
+            n => `Le train part dans ${n} minutes.`,
+            n => `Il fait ${n} degrés aujourd'hui.`,
+            n => `J'habite à ${n} kilomètres d'ici.`,
+            n => `J'ai payé ${n} euros.`,
+            n => `Le vol dure ${n} heures.`,
+            n => `Il y a ${n} étages dans cet immeuble.`,
+            n => `J'attends depuis ${n} minutes.`,
+            n => `Le billet coûte ${n} euros.`,
+            n => `La ville a ${n} habitants.`,
+            n => `Il reste ${n} jours avant les vacances.`,
+            n => `Le bus numéro ${n} est en retard.`,
+        ];
+
+        // ── Speech ────────────────────────────────────────────────────────────
+
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
             frVoice = voices.find(v => v.lang.startsWith('fr')) || null;
@@ -210,9 +287,9 @@
         loadVoices();
         window.speechSynthesis.onvoiceschanged = loadVoices;
 
-        function speak(number) {
+        function speak(text) {
             window.speechSynthesis.cancel();
-            const utter = new SpeechSynthesisUtterance(String(number));
+            const utter = new SpeechSynthesisUtterance(text);
             utter.lang = 'fr-FR';
             utter.rate = 0.85;
             if (frVoice) utter.voice = frVoice;
@@ -222,18 +299,25 @@
             window.speechSynthesis.speak(utter);
         }
 
+        // ── Game logic ────────────────────────────────────────────────────────
+
         function randomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
         function nextQuestion() {
             currentNumber = randomInt(currentMin, currentMax);
+            if (currentMode === 'sentence') {
+                currentText = pick(templates)(currentNumber);
+            } else {
+                currentText = String(currentNumber);
+            }
             answerInput.value = '';
             answerInput.disabled = false;
             feedback.textContent = '';
             feedback.className = 'feedback';
             answerInput.focus();
-            speak(currentNumber);
+            speak(currentText);
         }
 
         function checkAnswer() {
@@ -251,7 +335,7 @@
                 feedback.textContent = 'Listen Again';
                 feedback.className = 'feedback wrong';
                 updateScore();
-                speak(currentNumber);
+                speak(currentText);
                 answerInput.value = '';
                 answerInput.focus();
             }
@@ -265,7 +349,17 @@
             }
         }
 
-        // Range buttons
+        // ── Event listeners ───────────────────────────────────────────────────
+
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                modeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+                nextQuestion();
+            });
+        });
+
         ranges.forEach(btn => {
             btn.addEventListener('click', () => {
                 ranges.forEach(b => b.classList.remove('active'));
@@ -277,7 +371,7 @@
         });
 
         speakBtn.addEventListener('click', () => {
-            if (currentNumber !== null) speak(currentNumber);
+            if (currentText) speak(currentText);
         });
 
         submitBtn.addEventListener('click', checkAnswer);
